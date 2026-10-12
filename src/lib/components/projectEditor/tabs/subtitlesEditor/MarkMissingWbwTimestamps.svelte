@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { globalState } from '$lib/runes/main.svelte';
 	import toast from 'svelte-5-french-toast';
-	import LL from '$lib/i18n/i18n-svelte';
+	import LL, { locale } from '$lib/i18n/i18n-svelte';
 	import { get } from 'svelte/store';
 	import {
 		clearWbwTimestampReview,
@@ -78,7 +78,14 @@
 		toast.success(
 			get(LL).editor.missingWbwMarked({
 				count: markedCount,
-				plural: markedCount > 1 ? 's were' : ' was'
+				plural:
+					get(locale) === 'pt-BR'
+						? markedCount > 1
+							? 's'
+							: ''
+						: markedCount > 1
+							? 's were'
+							: ' was'
 			})
 		);
 	}

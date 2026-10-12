@@ -2,7 +2,7 @@
 	import { globalState } from '$lib/runes/main.svelte';
 	import toast from 'svelte-5-french-toast';
 	import { subdivideLongSubtitleSegments } from '$lib/services/AutoSegmentation';
-	import LL from '$lib/i18n/i18n-svelte';
+	import LL, { locale } from '$lib/i18n/i18n-svelte';
 	import { get } from 'svelte/store';
 	import ModalManager from '$lib/components/modals/ModalManager';
 
@@ -70,10 +70,7 @@
 		const numericMinWords = Number(minWordsPerSegment);
 		const safeMinWordsPerSegment =
 			enableMinWords && Number.isFinite(numericMinWords)
-				? Math.min(
-						minWordsUpperLimit,
-						Math.max(SUBDIVIDE_MIN_LIMIT, Math.round(numericMinWords))
-					)
+				? Math.min(minWordsUpperLimit, Math.max(SUBDIVIDE_MIN_LIMIT, Math.round(numericMinWords)))
 				: 0;
 		const splitCount = await subdivideLongSubtitleSegments({
 			minWordsPerSegment: safeMinWordsPerSegment
@@ -84,7 +81,11 @@
 		}
 
 		toast.success(
-			LL_.editor.splitApplied({ count: splitCount, plural: splitCount > 1 ? 's were' : ' was' })
+			LL_.editor.splitApplied({
+				count: splitCount,
+				plural:
+					get(locale) === 'pt-BR' ? (splitCount > 1 ? 's' : '') : splitCount > 1 ? 's were' : ' was'
+			})
 		);
 	}
 
