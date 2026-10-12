@@ -1,0 +1,81 @@
+name: Gerar instalador Windows PT-BR
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+    steps:
+      - name: Obter codigo
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          persist-credentials: false
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Preparar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Conferir traducao
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'src/lib/i18n/pt-BR/index.ts')) {
+            throw 'Falta a traducao. Envie tambem a pasta src do pacote PT-BR.'
+          }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -ne '3.7.80') {
+            throw "Este pacote foi preparado para 3.7.80. Versao encontrada: $version."
+          }
+
+      - name: Preparar FFmpeg e yt-dlp
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $binDir = 'src-tauri/binaries'
+          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+          curl.exe --fail --location --retry 3 -o "$binDir/yt-dlp.exe" 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'Falha no download do yt-dlp.' }
+          $archive = Join-Path $env:RUNNER_TEMP 'qc-ffmpeg.7z'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'qc-ffmpeg'
+          curl.exe --fail --location --retry 3 -o $archive 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z'
+          if ($LASTEXITCODE -ne 0) { throw 'Falha no download do FFmpeg.' }
+          $sevenZip = (Get-Command 7z -ErrorAction Stop).Source
+          & $sevenZip x $archive "-o$extractDir" -y
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao extrair FFmpeg.' }
+          foreach ($binary in @('ffmpeg.exe', 'ffprobe.exe')) {
+            $found = Get-ChildItem -Path $extractDir -Recurse -File -Filter $binary | Select-Object -First 1
+            if (-not $found) { throw "Arquivo nao encontrado: $binary" }
+            Copy-Item -LiteralPath $found.FullName -Destination (Join-Path $binDir $binary) -Force
+          }
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar codigo
+        run: npm run check
+
+      - name: Gerar instalador
+        run: npm run tauri build -- --bundles nsis --config src-tauri/tauri.pt-BR.conf.json
+
+      - name: Disponibilizar instalador para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuranCaption-PT-BR-Windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
